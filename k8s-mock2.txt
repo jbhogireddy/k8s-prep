@@ -1,0 +1,234 @@
+Take a backup of the etcd cluster and save it to /opt/etcd-backup.db
+  export ETCDCTL_API=3
+  
+  To Test
+  etcdctl --endpoints https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list
+  To Create: 
+  etcdctl --endpoints https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /opt/etcd-backup.db
+  
+Create a Pod called redis-storage with image: redis:alpine with a Volume of type emptyDir that lasts for the life of the Pod.
+Pod named 'redis-storage' created
+Pod 'redis-storage' uses Volume type of emptyDir
+Pod 'redis-storage' uses volumeMount with mountPath = /data/redis 
+  
+kubectl run redis-storage --image=redis:alpine --dry-run=client --restart=Never -o yaml >redis.yaml
+
+Edit the yaml file to add volumes and mountpath
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: redis-storage
+  name: redis-storage
+spec:
+  containers:
+  - image: redis:alpine
+    name: redis-storage
+    volumeMounts:
+    - name: redis-storage
+      mountPath: /data/redis
+  volumes:
+  - name: redis-storage
+    emptyDir: {}
+  
+Create a new pod called super-user-pod with image busybox:1.28. Allow the pod to be able to set system_time.
+The container should sleep for 4800 seconds.
+
+kubectl run super-user-pod --image=busybox:1.28 --command sleep 4800 --dry-run=client -o yaml >super.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: super-user-pod
+  name: super-user-pod
+spec:
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: busybox:1.28
+    name: super-user-pod
+    securityContext:
+      capabilities:
+        add: ["SYS_TIME"]
+        
+A pod definition file is created at /root/use-pv.yaml. Make use of this manifest file and mount the persistent volume called pv-1. Ensure the pod is running and the PV is bound.
+
+mountPath: /data
+persistentVolumeClaim Name: my-pvc 
+
+cat pvc.yaml 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi
+      
+kubectl apply -f pvc.yaml 
+persistentvolumeclaim/my-pvc created
+      
+kubectl get pv
+NAME   CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM            STORAGECLASS   REASON   AGE
+pv-1   10Mi       RWO            Retain           Bound    default/my-pvc                           19m
+
+pod using the persistent volume claim? 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: use-pv
+  name: use-pv
+spec:
+  containers:
+  - image: nginx
+    name: use-pv
+    volumeMounts:
+    - mountPath: "/data"
+      name: mypv
+  volumes:
+    - name: mypv
+      persistentVolumeClaim:
+        claimName: my-pvc
+        
+Create a new deployment called nginx-deploy, with image nginx:1.16 and 1 replica. Next upgrade the deployment to version 1.17 using rolling update.
+Task: Upgrade the version of the deployment to 1:17
+Task: Record the changes for the image upgrade 
+
+kubectl create deployment nginx-deploy --image=nginx:1.16 --replicas=1 --dry-run=client -o yaml >deploy.yaml
+edit the container name to deployment name and apply the config
+
+kubectl apply -f deploy.yaml --record
+
+kubectl rollout history deployment nginx-deploy 
+deployment.apps/nginx-deploy 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=deploy.yaml --record=true
+
+kubectl set image deployment/nginx-deploy nginx-deploy=nginx:1.17 --record
+
+kubectl rollout history deployment nginx-deploy 
+deployment.apps/nginx-deploy 
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=deploy.yaml --record=true
+2         kubectl set image deployment/nginx-deploy nginx-deploy=nginx:1.17 --record=true
+
+========================================
+
+cat john.csr | base64 | tr -d "\n"
+
+cat john.yaml 
+
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: john-developer
+spec:
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZEQ0NBVHdDQVFBd0R6RU5NQXNHQTFVRUF3d0VhbTlvYmpDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRApnZ0VQQURDQ0FRb0NnZ0VCQU1DK3dJdENabmhoUnhuZ0dWQjQxLzIxdFp3TlBEdWI4L1Y0SFk4ZVl5ZUx6TmgzCnhDcGFML3JmMVlWN3lEeEg5Wm5CMFNxdGNWNGxIeFplQ0lHZnpOOTRTSlJuZmxCbnNxZzhWWTZ5RW4ydFF6VlAKWTB3QU5ZRldmclppekZmc0FsZlNiSWsvT2piNnB0OURqOVI4amk2dXFkektnWHlzbEFKcHBySGhDVUJZR3BORApnWWJWY05Zd0Nyc0F0RWZFbDlvSjVjalYwdnIyc2RObWo3VmJsNURYcEhVSlVJRm1rRjZMWGJBaTdoSTVwcHBJCnZobU51cjBpRGFRUS82dTBJcWQyL0xtZDZ1SXlMM01UUHRTb21pVmUweVl5dHNXSG5OcHJpV2p2bWdZUUx6Y0MKa2gyZzViREcrTW9UZFpvM09LRVhXbk42cW1UNzJjYlQvOGIwVklNQ0F3RUFBYUFBTUEwR0NTcUdTSWIzRFFFQgpDd1VBQTRJQkFRQ1E3RENkTm1wODVoQnFVVmNTTjQzMWFoV1poRGpQWm1aWXdEbU05RUtnUjc5R3JZS2xaQjBJCnlxb3ZCRlRRWmlmVDFxOXRMZ3BnNW5ScW93REtoNDArTFRINHh6bjRWb1NFdVMvTGtPUWhmUFBhelBVZldiWlIKa2cvVU5TVmFTclhOWEQwWHloTmpNeGFzQTczRFNwdHVTNWh3aEZFNmF0Vk9vQk5tVHMrTXM5UTFCK3FTUURGZApkZmdyT0dFVDFqYUxCM1pGY1JYTlJSWWhQQ0tES0cvQ2pDTGM1Z2tMQUQzcXVUVWJiaUFlM0lHN1dNY09rSDBTCjhMdWo2K0xDbGV2dHFjRjZ6T3RaQ2xJeWMwN3B4dFpRSmNmSko3bXBzaEpUTFh2NkVpQ3paNWR6R0pXZnhoWG0KOWpRWkV1VEVjR05PL2d0enhjN3pWRUZYbEc5Wk5JeHYKLS0tLS1FTkQgQ0VSVElGSUNBVEUgUkVRVUVTVC0tLS0tCg==
+  signerName: example.com/serving
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+
+kubectl apply -f john.yaml 
+certificatesigningrequest.certificates.k8s.io/john-developer created
+
+ubectl get csr
+NAME             AGE   SIGNERNAME                                    REQUESTOR                  CONDITION
+csr-5lqs8        74m   kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   Approved,Issued
+csr-xjrfm        73m   kubernetes.io/kube-apiserver-client-kubelet   system:bootstrap:ye8slu    Approved,Issued
+john-developer   91s   example.com/serving                           kubernetes-admin           Pending
+
+kubectl certificate approve john-developer 
+certificatesigningrequest.certificates.k8s.io/john-developer approved
+
+kubectl get csr
+NAME             AGE     SIGNERNAME                                    REQUESTOR                  CONDITION
+csr-5lqs8        77m     kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   Approved,Issued
+csr-xjrfm        76m     kubernetes.io/kube-apiserver-client-kubelet   system:bootstrap:ye8slu    Approved,Issued
+john-developer   4m30s   example.com/serving                           kubernetes-admin           Approved
+
+
+kubectl create role developer -n development --resource=pods --verb=create,list,get,update,delete
+role.rbac.authorization.k8s.io/developer created
+
+kubectl describe role developer -n development
+Name:         developer
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  pods       []                 []              [create list get update delete]
+  
+kubectl create rolebinding developer-role-binding --role developer --user john -n development
+rolebinding.rbac.authorization.k8s.io/developer-role-binding created
+
+kubectl get rolebindings.rbac.authorization.k8s.io -n development
+NAME                     ROLE             AGE
+developer-role-binding   Role/developer   119s
+
+kubectl create rolebinding developer-role-binding --role developer --user john -n developmentrolebinding.rbac.authorization.k8s.io/developer-role-binding created
+root@controlplane:~/CKA# kubectl get rolebindings.rbac.authorization.k8s.io -n development
+NAME                     ROLE             AGE
+developer-role-binding   Role/developer   14s
+root@controlplane:~/CKA# kubectl describe rolebindings.rbac.authorization.k8s.io -n development
+Name:         developer-role-binding
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  developer
+Subjects:
+  Kind  Name  Namespace
+  ----  ----  ---------
+  User  john  
+  
+ubectl auth can-i update pods
+yes
+root@controlplane:~/CKA# kubectl auth can-i update pods --as john
+no
+root@controlplane:~/CKA# kubectl auth can-i update pods --as john -n development
+yes
+
+kubectl auth can-i watch pods --as john -n development
+no
+
+---
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: john-developer
+spec:
+  signerName: kubernetes.io/kube-apiserver-client
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZEQ0NBVHdDQVFBd0R6RU5NQXNHQTFVRUF3d0VhbTlvYmpDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRApnZ0VQQURDQ0FRb0NnZ0VCQUt2Um1tQ0h2ZjBrTHNldlF3aWVKSzcrVVdRck04ZGtkdzkyYUJTdG1uUVNhMGFPCjV3c3cwbVZyNkNjcEJFRmVreHk5NUVydkgyTHhqQTNiSHVsTVVub2ZkUU9rbjYra1NNY2o3TzdWYlBld2k2OEIKa3JoM2prRFNuZGFvV1NPWXBKOFg1WUZ5c2ZvNUpxby82YU92czFGcEc3bm5SMG1JYWpySTlNVVFEdTVncGw4bgpjakY0TG4vQ3NEb3o3QXNadEgwcVpwc0dXYVpURTBKOWNrQmswZWhiV2tMeDJUK3pEYzlmaDVIMjZsSE4zbHM4CktiSlRuSnY3WDFsNndCeTN5WUFUSXRNclpUR28wZ2c1QS9uREZ4SXdHcXNlMTdLZDRaa1k3RDJIZ3R4UytkMEMKMTNBeHNVdzQyWVZ6ZzhkYXJzVGRMZzcxQ2NaanRxdS9YSmlyQmxVQ0F3RUFBYUFBTUEwR0NTcUdTSWIzRFFFQgpDd1VBQTRJQkFRQ1VKTnNMelBKczB2czlGTTVpUzJ0akMyaVYvdXptcmwxTGNUTStsbXpSODNsS09uL0NoMTZlClNLNHplRlFtbGF0c0hCOGZBU2ZhQnRaOUJ2UnVlMUZnbHk1b2VuTk5LaW9FMnc3TUx1a0oyODBWRWFxUjN2SSsKNzRiNnduNkhYclJsYVhaM25VMTFQVTlsT3RBSGxQeDNYVWpCVk5QaGhlUlBmR3p3TTRselZuQW5mNm96bEtxSgpvT3RORStlZ2FYWDdvc3BvZmdWZWVqc25Yd0RjZ05pSFFTbDgzSkljUCtjOVBHMDJtNyt0NmpJU3VoRllTVjZtCmlqblNucHBKZWhFUGxPMkFNcmJzU0VpaFB1N294Wm9iZDFtdWF4bWtVa0NoSzZLeGV0RjVEdWhRMi80NEMvSDIKOWk1bnpMMlRST3RndGRJZjAveUF5N05COHlOY3FPR0QKLS0tLS1FTkQgQ0VSVElGSUNBVEUgUkVRVUVTVC0tLS0tCg==
+  usages:
+  - digital signature
+  - key encipherment
+  - client auth
+  groups:
+  - system:authenticated
+======================================================
+
+Create a nginx pod called nginx-resolver using image nginx, expose it internally with a service called nginx-resolver-service. Test that you are able to look up the service and pod names from within the cluster. Use the image: busybox:1.28 for dns lookup. Record results in /root/CKA/nginx.svc and /root/CKA/nginx.pod
+
+kubectl run nginx-resolver --image=nginx
+kubectl expose pod nginx-resolver --name=nginx-resolver-service --port=80 --target-port=80 --type=ClusterIP
+
+kubectl run test-nslookup --image=busybox:1.28 --rm -it --restart=Never -- nslookup nginx-resolver-service
+kubectl run test-nslookup --image=busybox:1.28 --rm -it --restart=Never -- nslookup nginx-resolver-service > /root/CKA/nginx.svc
+
+kubectl get pod nginx-resolver -o wide
+kubectl run test-nslookup --image=busybox:1.28 --rm -it --restart=Never -- nslookup <P-O-D-I-P.default.pod> > /root/CKA/nginx.pod
+
+
+
