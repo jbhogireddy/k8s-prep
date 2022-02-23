@@ -26,11 +26,29 @@ Create a static pod
 
   copy to /etc/kubernetes/manifests Kube-Scheduler should automatically create the static pod
 
-Create a service to existing deployment
+Create a service type nodePort to existing deployment
 
   kubectl expose deployment hr-web-app --name hr-web-app-service --type=NodePort --port 8080 --traget-port 8080 --dry-run=client -o yaml > svc.yaml 
-  Manually add nodePort to the configuraiton after target port config
+  
+  Manually add nodePort to the configuraiton under ports section 
+  nodePort: 30007
   
 Jsonpath syntax to dispaly only osiamges information for all nodes
 
   kubectl get nodes -o jsonpath='{.items[*].status.nodeInfo.osImage}'
+  
+Create PV using host path
+
+    cat pv.yaml 
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: pv-analytics
+    spec:
+      capacity:
+        storage: 100Mi
+      accessModes:
+        - ReadWriteMany
+      hostPath:
+          path: /pv/data-analytics
+    root@controlplane:~# 
