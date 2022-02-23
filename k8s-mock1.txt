@@ -2,6 +2,8 @@ Deploy nginx application
 
   kubectl run nginx --image=nginx:alpine 
 
+Deploy nginx application with labels
+
   kubectl run messaging --image=redis:alpine --labels=app=tier2
 
 Create a K8s NS
