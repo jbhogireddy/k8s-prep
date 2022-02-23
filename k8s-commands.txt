@@ -14,7 +14,7 @@ Get nodes in json format
 Create a service messaging-service to expose the messaging application within the cluster on port 6379.
 Use imperative commands.
 
-  kubectl --expose pod messaging --name messaging-service --port 6379 --target-port 6379
+  kubectl expose pod messaging --name messaging-service --port 6379 --target-port 6379
 
 Create deployment with replicas
 
